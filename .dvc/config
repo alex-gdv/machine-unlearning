@@ -1,5 +1,0 @@
-[core]
-    remote = gcp_remote
-    autostage = true
-['remote "gcp_remote"']
-    url = gs://kaggle-dvc-cache/machine-unlearning
