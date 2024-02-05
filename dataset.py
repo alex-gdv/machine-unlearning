@@ -4,7 +4,6 @@ class UTKFace(Dataset):
         import torch
         from torchvision.models import ResNet50_Weights
         import os
-        import random
 
         self.root_dir = root_dir
         self.device = device
@@ -12,13 +11,7 @@ class UTKFace(Dataset):
         self.image_paths = os.listdir(self.root_dir)
 
         self.image_labels = torch.Tensor(
-            [int(x.split("_")[0])//10 for x in self.image_paths]
-        ).to(torch.int64)
-
-        self.num_classes = int(self.image_labels.max()) + 1
-
-        self.image_ohe = torch.nn.functional.one_hot(
-            self.image_labels, num_classes=self.num_classes
+            [int(x.split("_")[0]) for x in self.image_paths]
         ).to(torch.float32).to(self.device)
 
         self.image_transform = ResNet50_Weights.DEFAULT.transforms()
@@ -31,6 +24,6 @@ class UTKFace(Dataset):
 
         img = read_image(f"{self.root_dir}/{self.image_paths[idx]}")
         img_tensor = self.image_transform(img).to(self.device)
-        label = self.image_ohe[idx]
+        label = self.image_labels[idx].reshape([1])
 
         return img_tensor, label
