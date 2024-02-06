@@ -63,7 +63,9 @@ if __name__ == "__main__":
 
             total_mse = 0.
             total_mae = 0.
-            total_correct = 0
+            total_correct_10 = 0
+            total_correct_5 = 0
+            total_correct_1 = 0
             for batch, data in enumerate(dataloader):
                 optimizer.zero_grad()
 
@@ -72,20 +74,26 @@ if __name__ == "__main__":
 
                 loss_mse = criterion_mse(outputs, labels)
                 loss_mae = criterion_mae(outputs, labels)
-                correct = torch.abs(outputs - labels < 10).sum()
+                correct_10 = torch.abs(outputs - labels < 10).sum()
+                correct_5 = torch.abs(outputs - labels < 5).sum()
+                correct_1 = torch.abs(outputs - labels < 1).sum()
+
 
                 total_mse += loss_mse.item()
                 total_mae += loss_mae.item()
-                total_correct += correct
+                total_correct_10 += correct_10
+                total_correct_5 += correct_5
+                total_correct_1 += correct_1
+
 
                 if mode == "train":
                     loss_mse.backward()
                     optimizer.step()
 
                 if batch % 100 == 0:
-                    print(f"BATCH {batch} MSE {loss_mse.item()} MAE {loss_mae.item()} ACCURACY {correct/len(inputs)}")
+                    print(f"BATCH {batch} MSE {loss_mse.item()} MAE {loss_mae.item()} ACCURACY {correct_5/len(inputs)}")
 
-            print(f"MODE {mode} EPOCH {epoch} AVG MSE {total_mse/len(dataloader)} AVG MAE {total_mae/len(dataloader)} AVG ACCURACY {total_correct/size}")
+            print(f"MODE {mode} EPOCH {epoch} AVG MSE {total_mse/len(dataloader)} AVG MAE {total_mae/len(dataloader)} AVG ACCURACY {total_correct_10/size} {total_correct_5/size} {total_correct_1/size}")
             print("="*100)
 
             if epoch % 2 == 0:
