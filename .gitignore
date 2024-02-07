@@ -4,3 +4,4 @@
 .dvc/
 *.pt
 __pycache__/
+/checkpoints
