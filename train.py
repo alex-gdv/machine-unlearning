@@ -3,8 +3,13 @@ from torch.utils.data import DataLoader
 import sys
 import datetime
 
-from dataset import UTKFace
+from model.dataset import UTKFace
 from model.model import ResNet50
+
+
+def train():
+    pass
+
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -14,16 +19,7 @@ if __name__ == "__main__":
         device=device
     )
 
-    train_size = int(len(dataset)*0.7)
-    validation_size = int(len(dataset)*0.1)
-    test_size = len(dataset) - train_size - validation_size
-
-    # set seed for deterministic split
-    torch.manual_seed(0)
-    train_dataset, validation_dataset, _ = torch.utils.data.random_split(
-        dataset,
-        [train_size, validation_size, test_size]
-    )
+    
 
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     validation_dataloader = DataLoader(validation_dataset, batch_size=32, shuffle=True)        

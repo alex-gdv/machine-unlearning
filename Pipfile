@@ -13,6 +13,9 @@ dvc = {extras = ["gs"], version = "*"}
 torch = {version = "==2.2.0", index = "downloadpytorch"}
 numpy = "*"
 pillow = "*"
+torchvision = {version = "==0.17.0", index = "downloadpytorch"}
+scikit-learn = "*"
+pandas = "*"
 
 [dev-packages]
 
