@@ -1,7 +1,3 @@
-/data/data
-/venv
-/data/data_clean
-.dvc/
-*.pt
-__pycache__/
-/checkpoints
+/data/raw
+/data/clean
+
