@@ -16,6 +16,9 @@ pillow = "*"
 torchvision = {version = "==0.17.0", index = "downloadpytorch"}
 scikit-learn = "*"
 pandas = "*"
+pyarrow = "*"
+tqdm = "*"
+tabulate = "*"
 
 [dev-packages]
 
