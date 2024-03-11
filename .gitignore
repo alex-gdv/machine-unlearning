@@ -1,3 +1,4 @@
 .dvc
 /data/raw
 /data/clean
+/logs

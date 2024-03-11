@@ -3,42 +3,45 @@ from tqdm import tqdm
 from tabulate import tabulate
 import argparse
 import torch
+import os
 
-from model.dataset import UTKFace
-from model.model import ResNet50
+from model.dataset import UTKFaceRegression
+from model.model import ResNet50Regression
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--checkpoint_path", type=str)
-parser.add_argument("--checkpoint_freq", type=int, default=5)
+parser.add_argument("--experiment", type=str, required=True)
+parser.add_argument("--checkpoint", type=str, required=False)
+parser.add_argument("--checkpoint_freq", type=int, default=2)
 parser.add_argument("--val_freq", type=int, default=5)
 parser.add_argument("--epochs", type=int, default=100)
-parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--encoding", default="regression", choices=["ordinal", "regression"])
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train_dataset = UTKFace("data/train.json")
-val_dataset = UTKFace("data/val.json")
+train_dataset = UTKFaceRegression("data/train.json")
+val_dataset = UTKFaceRegression("data/val.json")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
 
-if args.checkpoint_path is None:
-    model = ResNet50()
+os.makedirs(f"./checkpoints/{args.experiment}", exist_ok=True)
+if args.checkpoint is None:
+    model = ResNet50Regression()
     optimizer = torch.optim.Adam(model.parameters())
 
     start_epoch = 0
-# else:
-#     checkpoint = torch.load(args.checkpoint_path)
+else:
+    checkpoint = torch.load(args.checkpoint)
 
-#     model = ResNet50().load_state_dict(checkpoint["model_state_dict"])
-#     optimizer = torch.optim.Adam().load_state_dict(checkpoint["optimizer_state_dict"])
+    model = ResNet50Regression().load_state_dict(checkpoint["model_state_dict"])
+    optimizer = torch.optim.Adam().load_state_dict(checkpoint["optimizer_state_dict"])
 
-#     start_epoch = checkpoint["epoch"] + 1
+    start_epoch = checkpoint["epoch"] + 1
 
-criterion = torch.nn.MSELoss()
+criterion = torch.nn.MSELoss(reduction="sum")
 model = model.to(device)
 
 for epoch in range(start_epoch, args.epochs):
@@ -66,7 +69,7 @@ for epoch in range(start_epoch, args.epochs):
             outputs = model(inputs)
 
             loss = criterion(outputs, labels)            
-            metrics["loss"] = metrics.get("loss", 0.) + loss.item() 
+            metrics["loss"] = metrics.get("loss", 0.) + loss.item()
             for window in [1, 5, 10]:
                 metrics[f"within_{window}"] = metrics.get(f"within_{window}", 0.) + (torch.abs(outputs - labels) < window).sum()
 
@@ -77,9 +80,10 @@ for epoch in range(start_epoch, args.epochs):
         table = list(settings.items()) + [(k, v/size) for k, v in metrics.items()]
         print(tabulate(table))
 
-        # if epoch % args.checkpoint_freq == 0:
-        #     torch.save({
-        #                 'epoch': epoch,
-        #                 'model_state_dict': model.state_dict(),
-        #                 'optimizer_state_dict': optimizer.state_dict()}, 
-        #                 f"./checkpoints/{model_name}")
+        if epoch % args.checkpoint_freq == 0:
+            if not os.path.isdir(""):
+                torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict()}, 
+                            f"./checkpoints/{args.experiment}/epoch_{epoch}.pt")
