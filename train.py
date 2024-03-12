@@ -1,104 +1,89 @@
-import torch
 from torch.utils.data import DataLoader
-import sys
-import datetime
+from tqdm import tqdm
+from tabulate import tabulate
+import argparse
+import torch
+import os
 
-from dataset import UTKFace
-from model import ResNet50
+from model.dataset import UTKFaceRegression
+from model.model import ResNet50Regression
 
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dataset = UTKFace(
-        root_dir="./data/data_clean",
-        device=device
-    )
+parser = argparse.ArgumentParser()
+parser.add_argument("--experiment", type=str, required=True)
+parser.add_argument("--checkpoint", type=str, required=False)
+parser.add_argument("--checkpoint_freq", type=int, default=2)
+parser.add_argument("--val_freq", type=int, default=5)
+parser.add_argument("--epochs", type=int, default=100)
+parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--encoding", default="regression", choices=["ordinal", "regression"])
+args = parser.parse_args()
 
-    train_size = int(len(dataset)*0.7)
-    validation_size = int(len(dataset)*0.1)
-    test_size = len(dataset) - train_size - validation_size
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # set seed for deterministic split
-    torch.manual_seed(0)
-    train_dataset, validation_dataset, _ = torch.utils.data.random_split(
-        dataset,
-        [train_size, validation_size, test_size]
-    )
+train_dataset = UTKFaceRegression("data/train.json")
+val_dataset = UTKFaceRegression("data/val.json")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=32, shuffle=True)        
+train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
 
-    model = ResNet50().to(device)
-
+os.makedirs(f"./checkpoints/{args.experiment}", exist_ok=True)
+if args.checkpoint is None:
+    model = ResNet50Regression()
     optimizer = torch.optim.Adam(model.parameters())
-    criterion_mse = torch.nn.MSELoss()
-    criterion_mae = torch.nn.L1Loss()
 
-    # load checkpoint
-    if len(sys.argv) > 1:
-        model_name = sys.argv[1]
-        checkpoint = torch.load(f"./checkpoints/{model_name}")
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        s_epoch = checkpoint["epoch"] + 1
-    else:
-        s_epoch = 0
-        model_name = "model_" + datetime.datetime.now().strftime("%y%m%d_%H%M%S") + ".pt"
+    start_epoch = 0
+else:
+    checkpoint = torch.load(args.checkpoint)
 
-    # training loop
-    n_epochs = 100
+    model = ResNet50Regression().load_state_dict(checkpoint["model_state_dict"])
+    optimizer = torch.optim.Adam().load_state_dict(checkpoint["optimizer_state_dict"])
 
-    for epoch in range(s_epoch, n_epochs):
-        for mode in ["train", "validation"]:
-            if mode == "train":
-                model.train()
-                dataloader = train_dataloader
-                size = train_size
-            elif mode == "validation":
+    start_epoch = checkpoint["epoch"] + 1
+
+criterion = torch.nn.MSELoss(reduction="sum")
+model = model.to(device)
+
+for epoch in range(start_epoch, args.epochs):
+    for mode in ["train", "validation"]:
+        if mode == "train":
+            model.train()
+            dataloader = train_dataloader
+            size = len(train_dataset)
+        elif mode == "validation":
+            if epoch % args.val_freq == 0:
                 model.eval()
-                dataloader = validation_dataloader
-                size = validation_size
+                dataloader = val_dataloader
+                size = len(val_dataset)
+            else:
+                continue
 
-            print(f"MODE {mode}", flush=True)
+        settings = {"epoch": epoch, "mode": mode}
+        metrics = {}
+        for batch, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc=mode, leave=False):
+            inputs = inputs.to(device)
+            labels = labels.to(device).float()
 
-            total_mse = 0.
-            total_mae = 0.
-            total_correct_10 = 0
-            total_correct_5 = 0
-            total_correct_1 = 0
-            for batch, data in enumerate(dataloader):
-                optimizer.zero_grad()
+            optimizer.zero_grad()
 
-                inputs, labels = data
-                outputs = model(inputs)
+            outputs = model(inputs)
 
-                loss_mse = criterion_mse(outputs, labels)
-                loss_mae = criterion_mae(outputs, labels)
-                correct_10 = torch.abs(outputs - labels < 10).sum()
-                correct_5 = torch.abs(outputs - labels < 5).sum()
-                correct_1 = torch.abs(outputs - labels < 1).sum()
+            loss = criterion(outputs, labels)            
+            metrics["loss"] = metrics.get("loss", 0.) + loss.item()
+            for window in [1, 5, 10]:
+                metrics[f"within_{window}"] = metrics.get(f"within_{window}", 0.) + (torch.abs(outputs - labels) < window).sum()
 
+            if mode == "train":
+                loss.backward()
+                optimizer.step()
+        
+        table = list(settings.items()) + [(k, v/size) for k, v in metrics.items()]
+        print(tabulate(table))
 
-                total_mse += loss_mse.item()
-                total_mae += loss_mae.item()
-                total_correct_10 += correct_10
-                total_correct_5 += correct_5
-                total_correct_1 += correct_1
-
-
-                if mode == "train":
-                    loss_mse.backward()
-                    optimizer.step()
-
-                if batch % 100 == 0:
-                    print(f"BATCH {batch} MSE {loss_mse.item()} MAE {loss_mae.item()} ACCURACY {correct_5/len(inputs)}")
-
-            print(f"MODE {mode} EPOCH {epoch} AVG MSE {total_mse/len(dataloader)} AVG MAE {total_mae/len(dataloader)} AVG ACCURACY {total_correct_10/size} {total_correct_5/size} {total_correct_1/size}")
-            print("="*100)
-
-            if epoch % 2 == 0:
+        if epoch % args.checkpoint_freq == 0:
+            if not os.path.isdir(""):
                 torch.save({
                             'epoch': epoch,
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict()}, 
-                            f"./checkpoints/{model_name}")
+                            f"./checkpoints/{args.experiment}/epoch_{epoch}.pt")

@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[[source]]
+url = "https://download.pytorch.org/whl/cu121/"
+verify_ssl = true
+name = "downloadpytorch"
+
+[packages]
+dvc = {extras = ["gs"], version = "*"}
+torch = {version = "==2.2.0", index = "downloadpytorch"}
+numpy = "*"
+pillow = "*"
+torchvision = {version = "==0.17.0", index = "downloadpytorch"}
+scikit-learn = "*"
+pandas = "*"
+pyarrow = "*"
+tqdm = "*"
+tabulate = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
