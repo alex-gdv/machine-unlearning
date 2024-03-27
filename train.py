@@ -5,7 +5,7 @@ import argparse
 import torch
 import os
 
-from model.dataset import UTKFaceRegression
+from model.dataset import UTKFaceRegression, UTKFaceOrdinal
 from model.model import ResNet50Regression
 
 
@@ -21,8 +21,12 @@ args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train_dataset = UTKFaceRegression("data/train.json")
-val_dataset = UTKFaceRegression("data/val.json")
+if args.encoding == "ordinal":
+    train_dataset = UTKFaceOrdinal("data/train.json")
+    val_dataset = UTKFaceOrdinal("data/val.json")
+else:
+    train_dataset = UTKFaceRegression("data/train.json")
+    val_dataset = UTKFaceRegression("data/val.json")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        

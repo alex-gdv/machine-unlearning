@@ -10,15 +10,16 @@ name = "downloadpytorch"
 
 [packages]
 dvc = {extras = ["gs"], version = "*"}
-torch = {version = "==2.2.0", index = "downloadpytorch"}
+torch = "*"
 numpy = "*"
 pillow = "*"
-torchvision = {version = "==0.17.0", index = "downloadpytorch"}
+torchvision = "*"
 scikit-learn = "*"
 pandas = "*"
 pyarrow = "*"
 tqdm = "*"
 tabulate = "*"
+torchaudio = "*"
 
 [dev-packages]
 
