@@ -5,13 +5,13 @@ import argparse
 import torch
 import os
 
-from model.dataset import UTKFaceRegression
+from model.dataset import UTKFaceRegression, UTKFaceOrdinal
 from model.model import ResNet50Regression
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--experiment", type=str, required=True)
-parser.add_argument("--checkpoint", type=str, required=False)
+parser.add_argument("--checkpoint_epoch", type=str, required=False)
 parser.add_argument("--checkpoint_freq", type=int, default=2)
 parser.add_argument("--val_freq", type=int, default=5)
 parser.add_argument("--epochs", type=int, default=100)
@@ -21,20 +21,24 @@ args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train_dataset = UTKFaceRegression("data/train.json")
-val_dataset = UTKFaceRegression("data/val.json")
+if args.encoding == "ordinal":
+    train_dataset = UTKFaceOrdinal("data/train.json")
+    val_dataset = UTKFaceOrdinal("data/val.json")
+else:
+    train_dataset = UTKFaceRegression("data/train.json")
+    val_dataset = UTKFaceRegression("data/val.json")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
 
 os.makedirs(f"./checkpoints/{args.experiment}", exist_ok=True)
-if args.checkpoint is None:
+if args.checkpoint_epoch is None:
     model = ResNet50Regression()
     optimizer = torch.optim.Adam(model.parameters())
 
     start_epoch = 0
 else:
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load(f"./checkpoints/{args.experiment}/epoch_{args.checkpoint_epoch}.pt")
 
     model = ResNet50Regression().load_state_dict(checkpoint["model_state_dict"])
     optimizer = torch.optim.Adam().load_state_dict(checkpoint["optimizer_state_dict"])
