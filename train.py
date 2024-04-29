@@ -36,7 +36,7 @@ if args.encoding == "ordinal":
     model = ResNet50Ordinal(num_classes=num_classes)
     criterion = torch.nn.CrossEntropyLoss()
 else:
-    train_dataset = UTKFaceRegression("data/train.json")
+    train_dataset = UTKFaceRegression("data/retain.json")
     val_dataset = UTKFaceRegression("data/val.json")
     model = ResNet50Regression()
     criterion = torch.nn.MSELoss(reduction="sum")
