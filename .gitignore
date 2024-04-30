@@ -1,5 +1,2 @@
-.dvc
-/data/raw
-/data/clean
 /logs
 /__pycache__
