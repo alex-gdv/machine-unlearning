@@ -189,6 +189,7 @@ for T in range(10,50):
     print('==> Done retraining M...')
     M_retrain_tensor = [param for param in M_retrain.parameters()]
     w_M_retrain_weights = weights_to_list_fast(M_retrain_tensor)
+
     #=====================================================================
     #======================= gradient ascent time ========================
     #=====================================================================
@@ -213,6 +214,7 @@ for T in range(10,50):
         params.data.copy_(old_params[name])
     M_unlearned_tensor = [param for param in M_unlearned.parameters()]
     w_M_unlearned_weights = weights_to_list_fast(M_unlearned_tensor)
+    
     #=====================================================================
     #================= compute verification error ========================
     #=====================================================================

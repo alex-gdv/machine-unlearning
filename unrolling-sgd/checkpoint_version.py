@@ -251,6 +251,7 @@ for ep in range(args.finetune_epochs):
         if (actual_idx!=0) and (actual_idx)%args.checkpoint_freq ==0:
             curr_weights = w_M_weights
             curr_error = rolling_unl_error
+        
         #Now, save the weights of both M_(N+t) and M'_(N+t)
         M_weights_tensor = [param for param in M.parameters()]
         w_M_weights = weights_to_list_fast(M_weights_tensor)
