@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import argparse
 import copy
-import os
+import random
 
 from model.dataset import UTKFaceRegression
 from model.model import ResNet50Regression
