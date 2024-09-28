@@ -13,6 +13,7 @@ pandas = "*"
 tqdm = "*"
 dvc = {extras = [ "gs",] }
 pyhessian = "*"
+mlflow = "*"
 
 [dev-packages]
 
