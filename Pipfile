@@ -3,23 +3,17 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
-[[source]]
-url = "https://download.pytorch.org/whl/cu121/"
-verify_ssl = true
-name = "downloadpytorch"
-
 [packages]
-dvc = {extras = ["gs"], version = "*"}
-torch = "*"
+torch = "==2.4.1"
 numpy = "*"
 pillow = "*"
-torchvision = "*"
+torchvision = "==0.19.1"
 scikit-learn = "*"
 pandas = "*"
-pyarrow = "*"
 tqdm = "*"
-tabulate = "*"
-torchaudio = "*"
+dvc = {extras = [ "gs",] }
+pyhessian = "*"
+mlflow = "*"
 
 [dev-packages]
 
