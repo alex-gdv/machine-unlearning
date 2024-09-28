@@ -1,6 +1,7 @@
 from PIL import Image
 import os
 
+
 def rgb_converter(source_dir, save_dir):
     image_paths = os.listdir(source_dir)
     

@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import json
 
+
 def make_retain_forget_json(dir, frac):
     train = pd.read_json(f"{dir}/train.json").transpose()
     retain, forget = train_test_split(train, test_size=frac, stratify=train["decade"])
@@ -12,6 +13,7 @@ def make_retain_forget_json(dir, frac):
 
     with open(f"{dir}/forget.json", "w+") as forget_fp:
         json.dump(forget.to_dict(orient="index"), forget_fp)
+
 
 if __name__ == "__main__":
     import argparse
