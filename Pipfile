@@ -11,8 +11,8 @@ torchvision = "==0.19.1"
 scikit-learn = "*"
 pandas = "*"
 tqdm = "*"
-pyhessian = "*"
 dvc = {extras = [ "gs",] }
+pyhessian = "*"
 
 [dev-packages]
 
