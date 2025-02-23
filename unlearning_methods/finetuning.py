@@ -1,67 +1,44 @@
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-from tabulate import tabulate
-import numpy as np
 import argparse
 import torch
 import os
 
-from model.dataset import UTKFaceRegression, UTKFaceOrdinal
-from model.model import ResNet50Regression, ResNet50Ordinal
-
-
-def output_statistics(settings, metrics, size, table_out=False):
-    if table_out:
-        print(tabulate(list(settings.items()) + [(k, v/size) for k, v in metrics.items()]), flush=True)
-    else:
-        print(*[(k, v/size) for k, v in metrics.items()], flush=True)
+from model.dataset import UTKFaceRegression
+from model.model import ResNet50Regression
+from util import output_statistics
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--experiment", type=str, required=True)
-parser.add_argument("--checkpoint_epoch", type=str, required=False)
+parser.add_argument("--load_model", type=str, required=True, help="trained model to finetune on retain set")
 parser.add_argument("--checkpoint_freq", type=int, default=5)
 parser.add_argument("--val_freq", type=int, default=5)
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=64)
-parser.add_argument("--encoding", default="regression", choices=["ordinal", "regression"])
+parser.add_argument("--unlearning_finetuning", action="store_true", help="finetune model on the remember set")
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if args.encoding == "ordinal":
-    num_classes = 100
-    train_dataset = UTKFaceOrdinal("data/retain.json", num_classes=num_classes)
-    val_dataset = UTKFaceOrdinal("data/val.json", num_classes=num_classes)
-    model = ResNet50Ordinal(num_classes=num_classes)
-    criterion = torch.nn.CrossEntropyLoss()
-else:
-    train_dataset = UTKFaceRegression("data/retain.json")
-    val_dataset = UTKFaceRegression("data/val.json")
-    model = ResNet50Regression()
-    criterion = torch.nn.MSELoss(reduction="sum")
+train_dataset = UTKFaceRegression("data/retain.json")
+val_dataset = UTKFaceRegression("data/val.json")
+model = ResNet50Regression()
+criterion = torch.nn.MSELoss(reduction="sum")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
 model = model.to(device)
 
 os.makedirs(f"./checkpoints/{args.experiment}", exist_ok=True)
-if args.checkpoint_epoch is None:
-    optimizer = torch.optim.Adam(model.parameters())
-    start_epoch = 0
-else:
-    checkpoint = torch.load(
-        f"./checkpoints/{args.experiment}/epoch_{args.checkpoint_epoch}.pt", 
-        map_location=device
-    )
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer = torch.optim.Adam(model.parameters())
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+checkpoint = torch.load(
+    args.load_model, 
+    map_location=device
+)
+model.load_state_dict(checkpoint["model_state_dict"])
+optimizer = torch.optim.Adam(model.parameters())
+optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-    start_epoch = checkpoint["epoch"] + 1
-
-
-for epoch in range(start_epoch, args.epochs+1):
+for epoch in range(0, args.epochs+1):
     modes = ["train", "validation"] if epoch % args.val_freq == 0 else ["train"]
     for mode in modes:
         if mode == "train":
@@ -84,11 +61,7 @@ for epoch in range(start_epoch, args.epochs+1):
 
             outputs = model(inputs)
 
-            loss = criterion(outputs, labels)            
-
-            if args.encoding == "ordinal":
-                outputs = outputs.round().argmin(dim=1)
-                labels = labels.round().argmin(dim=1)
+            loss = criterion(outputs, labels)
 
             batch_metrics["loss"] = loss.item()
             for window in [1, 5, 10]:
