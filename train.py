@@ -89,12 +89,11 @@ for epoch in range(start_epoch, args.epochs+1):
         output_statistics(settings=settings, metrics=epoch_metrics, size=size, table_out=True)
         
         if epoch % args.checkpoint_freq == 0:
-            if not os.path.isdir(""):
-                torch.save(
-                    {
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict()
-                    }, 
-                    f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
-                )
+            torch.save(
+                {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }, 
+                f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
+            )

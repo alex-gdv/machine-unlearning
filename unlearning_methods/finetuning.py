@@ -35,7 +35,6 @@ checkpoint = torch.load(
 )
 model.load_state_dict(checkpoint["model_state_dict"])
 optimizer = torch.optim.Adam(model.parameters())
-optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
 for epoch in range(0, args.epochs+1):
     modes = ["train", "validation"] if epoch % args.val_freq == 0 else ["train"]
@@ -82,12 +81,11 @@ for epoch in range(0, args.epochs+1):
         output_statistics(settings=settings, metrics=epoch_metrics, size=size, table_out=True)
         
         if epoch % args.checkpoint_freq == 0:
-            if not os.path.isdir(""):
-                torch.save(
-                    {
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict()
-                    }, 
-                    f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
-                )
+            torch.save(
+                {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }, 
+                f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
+            )
