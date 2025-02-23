@@ -21,12 +21,15 @@ args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 train_dataset = UTKFaceRegression("data/retain.json")
+forget_dataset = UTKFaceRegression("data/forget.json")
 val_dataset = UTKFaceRegression("data/val.json")
 teacher_model = ResNet50Regression()
 student_model = ResNet50Regression()
-criterion = torch.nn.CrossEntropyLoss(reduction="sum")
+student_criterion = torch.nn.MSELoss(reduction="sum")
+distil_criterion = torch.nn.CrossEntropyLoss(reduction="sum")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+forget_dataloader = DataLoader(forget_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
 teacher_model = teacher_model.to(device)
 student_model = student_model.to(device)
@@ -47,12 +50,16 @@ student_model.load_state_dict(student_checkpoint["model_state_dict"])
 optimizer = torch.optim.Adam(student_model.parameters())
 
 for epoch in range(0, args.epochs+1):
-    modes = ["train", "validation"] if epoch % args.val_freq == 0 else ["train"]
+    modes = ["train", "unlearning", "validation"] if epoch % args.val_freq == 0 else ["train", "unlearning"]
     for mode in modes:
         if mode == "train":
             student_model.train()
             dataloader = train_dataloader
             size = len(train_dataset)
+        elif mode == "unlearning":
+            student_model.train()
+            dataloader = forget_dataloader
+            size = len(forget_dataloader)
         elif mode == "validation":
             student_model.eval()
             dataloader = val_dataloader
@@ -63,23 +70,30 @@ for epoch in range(0, args.epochs+1):
         for batch, (inputs, labels) in enumerate(dataloader):
             batch_metrics = {}
             inputs = inputs.to(device)
+            labels = labels.to(device).float()
 
             optimizer.zero_grad()
 
             student_outputs = student_model(inputs)
-            teacher_outputs = teacher_model(inputs)
 
-            loss = criterion(student_outputs, teacher_outputs)
+            student_loss = student_criterion(student_outputs, labels)
 
             batch_metrics["loss"] = loss.item()
             for window in [1, 5, 10]:
-                batch_metrics[f"within_{window}"] = (torch.abs(student_outputs - labels) < window).sum().item()
+                batch_metrics[f"within_{window}"] = (torch.abs(student_loss - labels) < window).sum().item()
 
             epoch_metrics["loss"] = epoch_metrics.get("loss", 0.) + batch_metrics["loss"]
             for window in [1, 5, 10]:
                 epoch_metrics[f"within_{window}"] = epoch_metrics.get(f"within_{window}", 0.) + batch_metrics[f"within_{window}"]
 
             if mode == "train":
+                teacher_outputs = teacher_model(inputs)
+                distil_loss = distil_criterion(student_outputs, teacher_outputs)
+                loss = student_loss + distil_loss
+                loss.backward()
+                optimizer.step()
+            elif mode == "forget":
+                loss *= -1 # ascend on the loss value
                 loss.backward()
                 optimizer.step()
             
@@ -91,12 +105,11 @@ for epoch in range(0, args.epochs+1):
         output_statistics(settings=settings, metrics=epoch_metrics, size=size, table_out=True)
         
         if epoch % args.checkpoint_freq == 0:
-            if not os.path.isdir(""):
-                torch.save(
-                    {
-                        'epoch': epoch,
-                        'model_state_dict': student_model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict()
-                    }, 
-                    f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
-                )
+            torch.save(
+                {
+                    'epoch': epoch,
+                    'model_state_dict': student_model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }, 
+                f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
+            )
