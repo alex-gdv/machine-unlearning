@@ -15,7 +15,6 @@ parser.add_argument("--checkpoint_freq", type=int, default=5)
 parser.add_argument("--val_freq", type=int, default=5)
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=64)
-parser.add_argument("--unlearning_finetuning", action="store_true", help="finetune model on the remember set")
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
