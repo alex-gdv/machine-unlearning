@@ -4,8 +4,8 @@ import torch
 import os
 
 from model.dataset import UTKFaceRegression
-from model.model import ResNet50Regression
-from util import output_statistics
+from model.model import ResNetRegression
+from unlearning_methods.util import output_statistics
 
 
 parser = argparse.ArgumentParser()
@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 train_dataset = UTKFaceRegression("data/train.json")
 val_dataset = UTKFaceRegression("data/val.json")
-model = ResNet50Regression()
+model = ResNetRegression()
 criterion = torch.nn.MSELoss(reduction="sum")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)

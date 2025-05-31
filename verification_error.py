@@ -1,13 +1,13 @@
 import numpy as np
 import torch
 
-from metrics.util import weights_to_list_fast
-from model.model import ResNet50Regression
+from unlearning_methods.util import weights_to_list
+from model.model import ResNetRegression
 
 
 def get_verification_error(exact_unlearning_model, approx_unlearning_model):
-    exact_unlearning_weights = weights_to_list_fast([param for param in exact_unlearning_model.parameters()])
-    approx_unlearning_weights = weights_to_list_fast([param for param in approx_unlearning_model.parameters()])
+    exact_unlearning_weights = weights_to_list([param for param in exact_unlearning_model.parameters()])
+    approx_unlearning_weights = weights_to_list([param for param in approx_unlearning_model.parameters()])
 
     return np.linalg.norm((np.array(exact_unlearning_weights) - np.array(approx_unlearning_weights)))
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    exact_unlearning_model = ResNet50Regression()
+    exact_unlearning_model = ResNetRegression()
     exact_unlearning_model = exact_unlearning_model.to(device)
     exact_unlearning_checkpoint = torch.load(
         args.exact_unlearning_model, 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     )
     exact_unlearning_model.load_state_dict(exact_unlearning_checkpoint["model_state_dict"])
     
-    approx_unlearning_model = ResNet50Regression()
+    approx_unlearning_model = ResNetRegression()
     approx_unlearning_model = approx_unlearning_model.to(device)
     approx_unlearning_checkpoint = torch.load(
         args.approx_unlearning_model, 

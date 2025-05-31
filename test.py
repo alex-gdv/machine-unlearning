@@ -6,8 +6,8 @@ import torch
 import os
 
 from model.dataset import UTKFaceRegression
-from model.model import ResNet50Regression
-from util import output_statistics
+from model.model import ResNetRegression
+from unlearning_methods.util import output_statistics
 
 
 parser = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ test_dataset = UTKFaceRegression("data/test.json")
 test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
 
 checkpoint = torch.load(f"./checkpoints/{args.experiment}/epoch_{args.checkpoint_epoch}.pt")
-model = ResNet50Regression()
+model = ResNetRegression()
 model.load_state_dict(checkpoint["model_state_dict"])
 model = model.to(device)
 model.eval()
