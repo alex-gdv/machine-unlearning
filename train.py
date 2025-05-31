@@ -1,20 +1,11 @@
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-from tabulate import tabulate
-import numpy as np
 import argparse
 import torch
 import os
 
-from model.dataset import UTKFaceRegression, UTKFaceOrdinal
-from model.model import ResNet50Regression, ResNet50Ordinal
-
-
-def output_statistics(settings, metrics, size, table_out=False):
-    if table_out:
-        print(tabulate(list(settings.items()) + [(k, v/size) for k, v in metrics.items()]), flush=True)
-    else:
-        print(*[(k, v/size) for k, v in metrics.items()], flush=True)
+from model.dataset import UTKFaceRegression
+from model.model import ResNetRegression
+from unlearning_methods.util import output_statistics
 
 
 parser = argparse.ArgumentParser()
@@ -24,22 +15,14 @@ parser.add_argument("--checkpoint_freq", type=int, default=5)
 parser.add_argument("--val_freq", type=int, default=5)
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=64)
-parser.add_argument("--encoding", default="regression", choices=["ordinal", "regression"])
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if args.encoding == "ordinal":
-    num_classes = 100
-    train_dataset = UTKFaceOrdinal("data/train.json", num_classes=num_classes)
-    val_dataset = UTKFaceOrdinal("data/val.json", num_classes=num_classes)
-    model = ResNet50Ordinal(num_classes=num_classes)
-    criterion = torch.nn.CrossEntropyLoss()
-else:
-    train_dataset = UTKFaceRegression("data/retain.json")
-    val_dataset = UTKFaceRegression("data/val.json")
-    model = ResNet50Regression()
-    criterion = torch.nn.MSELoss(reduction="sum")
+train_dataset = UTKFaceRegression("data/train.json")
+val_dataset = UTKFaceRegression("data/val.json")
+model = ResNetRegression()
+criterion = torch.nn.MSELoss(reduction="sum")
 
 train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)        
@@ -84,11 +67,7 @@ for epoch in range(start_epoch, args.epochs+1):
 
             outputs = model(inputs)
 
-            loss = criterion(outputs, labels)            
-
-            if args.encoding == "ordinal":
-                outputs = outputs.round().argmin(dim=1)
-                labels = labels.round().argmin(dim=1)
+            loss = criterion(outputs, labels)
 
             batch_metrics["loss"] = loss.item()
             for window in [1, 5, 10]:
@@ -110,12 +89,11 @@ for epoch in range(start_epoch, args.epochs+1):
         output_statistics(settings=settings, metrics=epoch_metrics, size=size, table_out=True)
         
         if epoch % args.checkpoint_freq == 0:
-            if not os.path.isdir(""):
-                torch.save(
-                    {
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict()
-                    }, 
-                    f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
-                )
+            torch.save(
+                {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                }, 
+                f"./checkpoints/{args.experiment}/epoch_{epoch}.pt"
+            )

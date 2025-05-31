@@ -1,15 +1,20 @@
 from torch import nn
-from torchvision.models import resnet50, ResNet50_Weights
+from torchvision import models
 
 
-class ResNet50Regression(nn.Module):
+class ResNetRegression(nn.Module):
     def __init__(self):
-        super(ResNet50Regression, self).__init__()
+        super(ResNetRegression, self).__init__()
 
-        self.model = resnet50(weights=ResNet50_Weights.DEFAULT)
+        self.model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         self.nr_features = self.model.fc.in_features
         self.model.fc = nn.Linear(self.nr_features, 1)
-
+        
+    def reset_first_k_layers(self, k=0):
+        for i, layer in enumerate(self.model.children()):
+            if isinstance(layer, nn.Conv2d) and i < k:
+                layer.reset_parameters()
+            
     def forward(self, x):
         x = self.model(x)
 
@@ -22,7 +27,7 @@ class ResNet50Ordinal(nn.Module):
 
         self.num_classes = num_classes 
 
-        self.model = resnet50(weights=ResNet50_Weights.DEFAULT)
+        self.model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         self.nr_features = self.model.fc.in_features
         self.model.fc = nn.Linear(self.nr_features, self.num_classes)
         self.sigmoid = nn.Sigmoid()
