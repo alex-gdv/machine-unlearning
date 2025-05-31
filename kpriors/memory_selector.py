@@ -1,5 +1,4 @@
-"""
-Source:
+"""Source:
 @article{khan2021knowledge,
   title = {Knowledge-Adaptation Priors},
   author = {Khan, Mohammad Emtiyaz and Swaroop, Siddharth},
@@ -39,8 +38,6 @@ def select_memory_points(dataloader, model, memory_size, device):
             lamb = softmax_jacobian(outputs)
             if device.type == "cuda":
                 lamb = lamb.cpu()
-            # why do we sum here?
-            # lamb = torch.sum(lamb, dim=-1)
             lamb = lamb.detach()
             top_scores = torch.cat([top_scores, lamb])
             top_inputs = torch.cat([top_inputs, inputs])
@@ -54,12 +51,8 @@ def select_memory_points(dataloader, model, memory_size, device):
                 top_soft_labels = top_soft_labels[indices[:memory_size]]
 
         memory = {}
-        print(top_inputs.get_device())
         memory["inputs"] = top_inputs.to(device)
-        print(top_labels.get_device())
         memory["labels"] = top_labels.to(device)
-        print(top_soft_labels.get_device())
-        top_soft_labels = top_soft_labels.to(device)
-        memory["soft_labels"] = top_soft_labels
+        memory["soft_labels"] = top_soft_labels.to(device)
 
         return memory

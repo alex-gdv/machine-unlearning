@@ -9,7 +9,6 @@ import copy
 
 from model.dataset import UTKFaceRegression
 from model.model import ResNet50Regression
-from model.adamreg import AdamReg
 from kpriors.memory_selector import select_memory_points
 
 
