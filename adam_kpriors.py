@@ -19,71 +19,83 @@ from kpriors.memory_selector import select_memory_points
 
 
 class AdamKpriors(Adam):
-    def __init__(self, params):
+    def __init__(self, params, original_memory_outputs):
         super(AdamKpriors, self).__init__(params)
+        self.original_memory_outputs = original_memory_outputs
 
     def step(self, closure_forget, closure_memory):
         self._cuda_graph_capture_health_check()
 
         with torch.enable_grad():
             loss_forget = closure_forget()
-            loss_forget.backward()
         
-        loss_memory = closure_memory()
+        # K-priors: Calculate difference between original model outputs
+        # and unlearning model outputs.
+        # unlearning_memory_outputs = closure_memory()
+        # delta_memory_ouputs = unlearning_memory_outputs.detach() - self.original_memory_outputs
 
-        for group in self.param_groups:
-            params_with_grad = []
-            grads = []
-            exp_avgs = []
-            exp_avg_sqs = []
-            max_exp_avg_sqs = []
-            state_steps = []
-            beta1, beta2 = group["betas"]
+        # Adam optimiser code.
+        with torch.no_grad():
+            for group in self.param_groups:
+                params_with_grad = []
+                grads = []
+                exp_avgs = []
+                exp_avg_sqs = []
+                max_exp_avg_sqs = []
+                state_steps = []
+                beta1, beta2 = group["betas"]
+                lr = group["lr"]
+                weight_decay = group["weight_decay"]
+                eps = group["eps"]
 
-            has_complex = self._init_group(
-                group,
-                params_with_grad,
-                grads,
-                exp_avgs,
-                exp_avg_sqs,
-                max_exp_avg_sqs,
-                state_steps,
-            )
+                self._init_group(
+                    group,
+                    params_with_grad,
+                    grads,
+                    exp_avgs,
+                    exp_avg_sqs,
+                    max_exp_avg_sqs,
+                    state_steps,
+                )
 
-            params = self.group["params"]
-            for i, param in enumerate(params):
-                if i < 10:
-                    print(param.grad)
-                # grad = grads[i] if not maximize else -grads[i]
-                # exp_avg = exp_avgs[i]
-                # exp_avg_sq = exp_avg_sqs[i]
-                # step_t = state_steps[i]
+                print(len(params_with_grad))
+                print(params_with_grad)
+                # K-priors: Compute the vector-Jacobian product (VJP).
+                # grad_vjp = torch.autograd.grad(
+                #     unlearning_memory_outputs,
+                #     params_with_grad,
+                #     grad_outputs=delta_memory_ouputs,    
+                # )
 
-                # # update step
-                # step_t += 1
+                exit()
+                for i, param in enumerate(params_with_grad):
+                    grad = grads[i]
+                    exp_avg = exp_avgs[i]
+                    exp_avg_sq = exp_avg_sqs[i]
+                    step_t = state_steps[i]
 
-                # if weight_decay != 0:
-                #     grad = grad.add(param, alpha=weight_decay)
+                    # update step
+                    step_t += 1
 
-                # device = param.device
+                    if weight_decay != 0:
+                        grad = grad.add(param, alpha=weight_decay)
 
-                # # Decay the first and second moment running average coefficient
-                # exp_avg.lerp_(grad, 1 - beta1)
+                    # Decay the first and second moment running average coefficient
+                    exp_avg.lerp_(grad, 1 - beta1)
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad.conj(), value=1 - beta2)
 
-                # exp_avg_sq.mul_(beta2).addcmul_(grad, grad.conj(), value=1 - beta2)
+                    bias_correction1 = 1 - beta1**step_t
+                    bias_correction2 = 1 - beta2**step_t
 
-                # step = _get_value(step_t)
+                    step_size = lr / bias_correction1
 
-                # bias_correction1 = 1 - beta1**step
-                # bias_correction2 = 1 - beta2**step
+                    bias_correction2_sqrt = bias_correction2**0.5
 
-                # step_size = lr / bias_correction1
+                    denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
 
-                # bias_correction2_sqrt = bias_correction2**0.5
+                    param.addcdiv_(exp_avg, denom, value=-step_size)
 
-                # denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
-
-                # param.addcdiv_(exp_avg, denom, value=-step_size)
+        return loss_forget
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -102,32 +114,30 @@ base_checkpoint = torch.load(
     weights_only=False
 )
 model.load_state_dict(base_checkpoint["model_state_dict"])
+model.to(device)
 
 criterion = torch.nn.MSELoss(reduction="sum")
 
 # select memory points
-# memory_size = int(len(base_train_dataloader) * 4 * 0.05)
-# memory = select_memory_points(base_train_dataloader, model, memory_size, device)
+memory_size = 16 # int(len(base_train_dataloader) * 4 * 0.05)
+memory = select_memory_points(base_train_dataloader, model, memory_size, device)
 
-# optimizer = AdamKpriors(model.parameters())
-# for batch, (inputs, labels) in enumerate(forget_dataloader):
-#     batch_metrics = {}
-#     inputs = inputs.to(device)
-#     labels = labels.to(device).float()
+optimizer = AdamKpriors(model.parameters(), memory["outputs"])
+for batch, (inputs, labels) in enumerate(forget_dataloader):
+    batch_metrics = {}
+    inputs = inputs.to(device)
+    labels = labels.to(device).float()
 
-#     def closure_forget():
-#         optimizer.zero_grad()
-#         outputs = model(inputs)
-#         loss = criterion(outputs, labels)
-#         loss = -loss
-#         loss.backward()
-#         return loss.detach()
+    def closure_forget():
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss = -loss
+        loss.backward()
+        return loss.detach()
 
-#     def closure_memory():
-#         optimizer.zero_grad()
-        
-#         outputs = model(memory["inputs"])
-#         return outputs
+    def closure_memory():        
+        outputs = model(memory["inputs"])
+        return outputs
 
-#     optimizer.step(closure_forget, closure_memory)
-#     break
+    optimizer.step(closure_forget, closure_memory)
