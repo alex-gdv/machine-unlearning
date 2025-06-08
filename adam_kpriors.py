@@ -19,9 +19,11 @@ from kpriors.memory_selector import select_memory_points
 
 
 class AdamKpriors(Adam):
-    def __init__(self, params, original_memory_outputs):
+    def __init__(self, params, original_memory_outputs, prior_prec, original_params):
         super(AdamKpriors, self).__init__(params)
         self.original_memory_outputs = original_memory_outputs
+        self.prior_prec = prior_prec
+        self.original_params = original_params
 
     def step(self, closure_forget, closure_memory):
         self._cuda_graph_capture_health_check()
@@ -31,8 +33,8 @@ class AdamKpriors(Adam):
         
         # K-priors: Calculate difference between original model outputs
         # and unlearning model outputs.
-        # unlearning_memory_outputs = closure_memory()
-        # delta_memory_ouputs = unlearning_memory_outputs.detach() - self.original_memory_outputs
+        unlearning_memory_outputs = closure_memory()
+        delta_memory_ouputs = unlearning_memory_outputs.detach() - self.original_memory_outputs
 
         # Adam optimiser code.
         with torch.no_grad():
@@ -45,7 +47,6 @@ class AdamKpriors(Adam):
                 state_steps = []
                 beta1, beta2 = group["betas"]
                 lr = group["lr"]
-                weight_decay = group["weight_decay"]
                 eps = group["eps"]
 
                 self._init_group(
@@ -58,27 +59,31 @@ class AdamKpriors(Adam):
                     state_steps,
                 )
 
-                print(len(params_with_grad))
-                print(params_with_grad)
                 # K-priors: Compute the vector-Jacobian product (VJP).
-                # grad_vjp = torch.autograd.grad(
-                #     unlearning_memory_outputs,
-                #     params_with_grad,
-                #     grad_outputs=delta_memory_ouputs,    
-                # )
+                vjp_grads = torch.autograd.grad(
+                    unlearning_memory_outputs,
+                    params_with_grad,
+                    grad_outputs=delta_memory_ouputs,    
+                )
 
-                exit()
                 for i, param in enumerate(params_with_grad):
                     grad = grads[i]
                     exp_avg = exp_avgs[i]
                     exp_avg_sq = exp_avg_sqs[i]
                     step_t = state_steps[i]
+                    original_param = self.original_params[i]
+
+                    # K-priors: Add VJP to gradient.
+                    vjp_grad = vjp_grads[i]
+                    grad = grad.add(vjp_grad.detach())
 
                     # update step
                     step_t += 1
 
-                    if weight_decay != 0:
-                        grad = grad.add(param, alpha=weight_decay)
+                    # K-priors: Add previous weights to gradient.
+                    if self.prior_prec != 0:
+                        grad = grad.add(original_param, alpha=-self.prior_prec)
+                        grad = grad.add(param, alpha=self.prior_prec)
 
                     # Decay the first and second moment running average coefficient
                     exp_avg.lerp_(grad, 1 - beta1)
@@ -122,7 +127,19 @@ criterion = torch.nn.MSELoss(reduction="sum")
 memory_size = 16 # int(len(base_train_dataloader) * 4 * 0.05)
 memory = select_memory_points(base_train_dataloader, model, memory_size, device)
 
-optimizer = AdamKpriors(model.parameters(), memory["outputs"])
+# We define prior precision for the original and unlearning models.
+# The authors use prior precision values ranging from 5 to 50.
+# They use a value of 5 for image classification with an MLP.
+PRIOR_PREC = 5
+
+original_params = [p.detach().clone() for p in model.parameters()]
+
+optimizer = AdamKpriors(
+    model.parameters(),
+    memory["outputs"],
+    PRIOR_PREC,
+    original_params   
+)
 for batch, (inputs, labels) in enumerate(forget_dataloader):
     batch_metrics = {}
     inputs = inputs.to(device)
@@ -140,4 +157,6 @@ for batch, (inputs, labels) in enumerate(forget_dataloader):
         outputs = model(memory["inputs"])
         return outputs
 
-    optimizer.step(closure_forget, closure_memory)
+    loss_forget = optimizer.step(closure_forget, closure_memory)
+    if batch % 10 == 0:
+        print(loss_forget)
